@@ -46,4 +46,8 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+private:
+	// y = 5.220585 + 146.3705*e^(-0.1226524*x)
+	static float GetNormalizedValue(float Index);
+
 };

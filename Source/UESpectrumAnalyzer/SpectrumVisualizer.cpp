@@ -4,6 +4,9 @@
 #include "SpectrumVisualizer.h"
 #include "TimeSynthComponent.h"
 
+const float FREQ_BETWEEN_BARS = 50.f;
+const int BAR_NUMBER = 20;
+
 // Sets default values
 ASpectrumVisualizer::ASpectrumVisualizer()
 {
@@ -18,12 +21,11 @@ ASpectrumVisualizer::ASpectrumVisualizer()
 	SetRootComponent(TimeSynthComponent);
 	
 	// Create spectrum bars
-	for (int32 i = 1; i <= 20; ++i)
+	for (int32 i = 1; i <= BAR_NUMBER; ++i)
 	{
-		// 50, 100, 150, 200, 250, ...
-		TimeSynthComponent->FrequenciesToAnalyze.Add(i * 50);
+		TimeSynthComponent->FrequenciesToAnalyze.Add(i * FREQ_BETWEEN_BARS);
 
-		FString SpectrumBarName = FString::Printf(TEXT("SpectrumBar%dHz"), i * 50);
+		FString SpectrumBarName = FString::Printf(TEXT("SpectrumBar%dHz"), i * FREQ_BETWEEN_BARS);
 		UStaticMeshComponent* SpectrumBar = CreateDefaultSubobject<UStaticMeshComponent>(*SpectrumBarName);
 		SpectrumBar->SetupAttachment(TimeSynthComponent);
 		SpectrumBar->SetStaticMesh(SpectrumBarMesh);
@@ -52,7 +54,7 @@ void ASpectrumVisualizer::PostEditChangeProperty(FPropertyChangedEvent& Property
 
 void ASpectrumVisualizer::Refresh()
 {
-	for (int32 i = 0; i < 20; ++i)
+	for (int32 i = 0; i < BAR_NUMBER; ++i)
 	{
 		if (SpectrumBars.IsValidIndex(i))
 		{
@@ -72,15 +74,30 @@ void ASpectrumVisualizer::Tick(float DeltaTime)
 	// Refresh ticks
 	for (auto SpecData : TimeSynthComponent->GetSpectralData())
 	{
-		int Index = SpecData.FrequencyHz / 50.f - 1;
+		int Index = (SpecData.FrequencyHz / FREQ_BETWEEN_BARS) - 1;
 		UStaticMeshComponent* SpectrumBar = SpectrumBars[Index];
 
+		float Amplitude = SpecData.Magnitude / GetNormalizedValue(SpecData.FrequencyHz);
+		
 		FVector BarScale = SpectrumBar->GetComponentScale();
-		BarScale.Z = 1.f + SpecData.Magnitude / 5.f;
+		BarScale.Z = .1f + 10 * Amplitude;
 
 		const FVector NewBarScale = FMath::VInterpTo(SpectrumBar->GetComponentScale(),
 			BarScale, DeltaTime, 5.f); 
 		SpectrumBar->SetWorldScale3D(NewBarScale);
+
+		UMaterialInstanceDynamic* Material = SpectrumBar->CreateDynamicMaterialInstance(0);
+		Material->SetScalarParameterValue(TEXT("Amplitude"), Amplitude);
+		SpectrumBar->SetMaterial(0, Material);
 	}
+}
+
+// y = 5.220585 + 146.3705*e^(-0.1226524*x)
+inline float ASpectrumVisualizer::GetNormalizedValue(float Frequency)
+{
+	const float a = 5.220585f;
+	const float b = 146.f;
+	const float c = 0.1226524f / 50.f;
+	return a + b*FMath::Exp(-c * Frequency);
 }
 
